@@ -224,6 +224,7 @@ pre {
 }
 .row-head { margin-bottom: 8px; }
 .row-head p { margin: 0; flex: 1; }
+.check { display: flex; align-items: center; gap: 6px; }
 .rune-brief { color: var(--text); font-size: 13px; }
 .rune-row .rune-brief { display: none; }
 .rune-row.folded .rune-brief { display: inline; }

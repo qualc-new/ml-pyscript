@@ -97,8 +97,8 @@
         </dialog>
         <p class="muted rule">
           每一套各自选一只魔灵。白字是这只魔灵当前等级的基础值：生命 = con × 15，攻击、防御、速度用魔灵自己的数值。
-          绿字 = 白字 ×（符文百分比 + 荣耀建筑）+ 符文平值 + 已装备神器主属性。速度只再加迅速对白字的 25%（向上取整），不含天空部落图腾。爆伤加上堕落的远古守护。
-          生命、攻击、防御的下限填这个绿字，要先选魔灵。速度填符文速度，暴击、爆伤、命中、抵抗填百分比。召唤师技能和公会旗子不计入。
+          生命、攻击、防御的下限填绿字（含荣耀建筑和神器主属性），要先选魔灵。速度填符文速度，暴击、爆伤、命中、抵抗填符文百分比。召唤师技能和公会旗子不计入。
+          开始配置下面的选项只改变结果展示：默认只显示符文绿字；可另显示合计，或把竞技场建筑、队长技能加进展示。
           配置按账号记在这台浏览器里。点「一键导入 RTA 配置」会清空当前配置，再填入世界竞技场里凑满 6 颗符文的预设。每套左侧可以拖拽排序。
           配置使用库存里的符文，以及魔灵身上正在穿的符文（含魔灵仓库和岛上）。
           没选魔灵的那一套只显示符文百分比。未勾选的套装不会进散件槽。后一套会排除前面用掉的符文。
@@ -109,6 +109,11 @@
           <button type="button" id="import-rta">一键导入 RTA 配置</button>
           <button type="button" id="solve" class="primary">开始配置</button>
           <span id="rune-status" class="status"></span>
+        </div>
+        <div class="filter-row">
+          <label class="check"><input id="show-total" type="checkbox" /> 展示合计</label>
+          <label class="check"><input id="include-buildings" type="checkbox" /> 包含竞技场建筑</label>
+          <label>队长技能 <select id="leader"><option value="">不选</option></select></label>
         </div>
       </div>
       <div id="rune-result"></div>

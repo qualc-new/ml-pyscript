@@ -88,6 +88,34 @@ STAT_HINT = {
     "acc": "百分比",
     "res": "百分比",
 }
+# 竞技场常见队长加成。id 是「属性:百分比」。
+LEADER_OPTIONS = (
+    ("spd", 15, "速度 15%"),
+    ("spd", 19, "速度 19%"),
+    ("spd", 24, "速度 24%"),
+    ("spd", 33, "速度 33%"),
+    ("hp", 15, "生命 15%"),
+    ("hp", 21, "生命 21%"),
+    ("hp", 25, "生命 25%"),
+    ("hp", 33, "生命 33%"),
+    ("atk", 15, "攻击 15%"),
+    ("atk", 21, "攻击 21%"),
+    ("atk", 25, "攻击 25%"),
+    ("atk", 33, "攻击 33%"),
+    ("def", 15, "防御 15%"),
+    ("def", 21, "防御 21%"),
+    ("def", 25, "防御 25%"),
+    ("def", 33, "防御 33%"),
+    ("cr", 15, "暴击 15%"),
+    ("cr", 23, "暴击 23%"),
+    ("acc", 30, "命中 30%"),
+    ("acc", 41, "命中 41%"),
+    ("acc", 55, "命中 55%"),
+    ("res", 30, "抵抗 30%"),
+    ("res", 41, "抵抗 41%"),
+    ("res", 55, "抵抗 55%"),
+)
+
 PANEL_LABEL = {
     "hp": "生命",
     "atk": "攻击",
@@ -520,7 +548,7 @@ def classify_equipped(runes: list) -> tuple[str, int, int | None] | None:
     return "broken", four, None
 
 
-def current_mins(runes: list, mode: str, four: int, two: int | None, unit: dict, glory: dict) -> dict[str, int]:
+def current_mins(runes: list, mode: str, four: int, two: int | None, unit: dict) -> dict[str, int]:
     total = add_vec(sum_stats(tuple(runes)), bonus_vector(four, two if mode == "pair" else None))
     mins = {
         key: total[index]
@@ -535,12 +563,8 @@ def current_mins(runes: list, mode: str, four: int, two: int | None, unit: dict,
         for index, value in enumerate(rune.flats):
             flats[index] += value
     art = artifact_flats(unit)
-    attr = int(unit.get("attribute") or 0)
-    extra_pct = (
-        glory["hp"],
-        glory["atk"] + glory["sanctuary"].get(attr, 0),
-        glory["def"],
-    )
+    # 一键导入的绿字不含竞技场建筑，和默认展示一致。
+    extra_pct = (0, 0, 0)
     extra_flat = (art["hp"], art["atk"], art["def"])
     stat_index = {key: index for index, key in enumerate(STAT_KEYS)}
     for index, key in enumerate(PANEL_KEYS):
@@ -583,7 +607,6 @@ def rta_presets(data: dict, runes: list, units: list[dict]) -> tuple[list[dict],
             grouped[unit_id] = []
         if rune_id not in grouped[unit_id]:
             grouped[unit_id].append(rune_id)
-    glory = glory_levels(data.get("deco_list") or [])
     presets: list[dict] = []
     skipped = 0
     for unit_id in order:
@@ -606,7 +629,7 @@ def rta_presets(data: dict, runes: list, units: list[dict]) -> tuple[list[dict],
                 "mode": mode,
                 "four": four,
                 "two": two,
-                "mins": current_mins(found, mode, four, two, unit, glory),
+                "mins": current_mins(found, mode, four, two, unit),
             }
         )
     return presets, skipped
@@ -862,7 +885,7 @@ def panel_for(monster: dict, outcome) -> dict:
         flat_atk += atk
         flat_def += defense
     swift = 25 if outcome.request.four_set == 3 else 0
-    # 面板速度 = 符文速度 + 迅速（向上取整）。速度图腾不写在这个数字里。
+    # 这里的绿字只含符文、套装和神器。竞技场建筑和队长技能由页面按勾选加上。
     swift_spd = percent_ceil(base["spd"], swift)
     building = {
         "hp": int(account.get("hp") or 0),
@@ -877,12 +900,12 @@ def panel_for(monster: dict, outcome) -> dict:
         "def": int(art.get("def") or 0),
     }
     green = {
-        "hp": base["hp"] * (percent["hp"] + building["hp"]) // 100 + flat_hp + artifact["hp"],
-        "atk": base["atk"] * (percent["atk"] + building["atk"]) // 100 + flat_atk + artifact["atk"],
-        "def": base["def"] * (percent["def"] + building["def"]) // 100 + flat_def + artifact["def"],
+        "hp": base["hp"] * percent["hp"] // 100 + flat_hp + artifact["hp"],
+        "atk": base["atk"] * percent["atk"] // 100 + flat_atk + artifact["atk"],
+        "def": base["def"] * percent["def"] // 100 + flat_def + artifact["def"],
         "spd": outcome.build.spd + swift_spd,
         "cr": percent["cr"],
-        "cd": percent["cd"] + building["cd"],
+        "cd": percent["cd"],
         "acc": percent["acc"],
         "res": percent["res"],
     }
@@ -907,8 +930,9 @@ def panel_for(monster: dict, outcome) -> dict:
         "swift": swift,
         "swift_spd": swift_spd,
         "rune_spd": outcome.build.spd,
+        "spd_tenths": int(account.get("spd") or 0),
         "flat": {"hp": flat_hp, "atk": flat_atk, "def": flat_def},
-        "percent": {key: percent[key] for key in ("hp", "atk", "def")},
+        "percent": {key: percent[key] for key in STAT_KEYS if key != "spd"},
         "building": building,
         "artifact": artifact,
         "lines": lines,
@@ -974,6 +998,7 @@ def meta_payload() -> dict:
             for key in STAT_KEYS
         ],
         "premium": [{"id": sid, "name": name} for sid, name in PREMIUM],
+        "leaders": [{"id": f"{stat}:{percent}", "name": name} for stat, percent, name in LEADER_OPTIONS],
     }
 
 

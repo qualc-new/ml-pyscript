@@ -122,11 +122,46 @@ function snapshotSets() {
   });
 }
 
+function parseLeader(value) {
+  if (!value) return null;
+  const [stat, percent] = String(value).split(":");
+  const amount = Number(percent);
+  if (!stat || !amount) return null;
+  return { stat, percent: amount };
+}
+
+function viewOptions() {
+  return {
+    showTotal: Boolean($("show-total")?.checked),
+    buildings: Boolean($("include-buildings")?.checked),
+    leader: parseLeader($("leader")?.value),
+  };
+}
+
 function saveConfig() {
   const id = accountId();
   if (!id || state.suspendConfig) return;
   const allow = [...document.querySelectorAll("[data-premium]:checked")].map((input) => Number(input.value));
-  localStorage.setItem(CONFIG_PREFIX + id, JSON.stringify({ allow, sets: snapshotSets() }));
+  const view = viewOptions();
+  localStorage.setItem(CONFIG_PREFIX + id, JSON.stringify({
+    allow,
+    sets: snapshotSets(),
+    show_total: view.showTotal,
+    buildings: view.buildings,
+    leader: $("leader").value,
+  }));
+}
+
+function applyViewOptions(data) {
+  const showTotal = $("show-total");
+  const buildings = $("include-buildings");
+  const leader = $("leader");
+  if (showTotal) showTotal.checked = Boolean(data?.show_total);
+  if (buildings) buildings.checked = Boolean(data?.buildings);
+  if (leader) {
+    const value = data?.leader || "";
+    leader.value = [...leader.options].some((option) => option.value === value) ? value : "";
+  }
 }
 
 function applyAllow(allow) {
@@ -143,12 +178,16 @@ function applyOverview(overview) {
   renderKeys();
   if (!state.meta) return;
   const cached = readConfig(accountId());
+  state.lastSolve = null;
+  $("rune-result").replaceChildren();
   state.suspendConfig = true;
   if (cached) {
     applyAllow(cached.allow);
+    applyViewOptions(cached);
     fillRtaRows(cached.sets.length ? cached.sets : []);
   } else {
     applyAllow([]);
+    applyViewOptions(null);
     fillRtaRows([]);
   }
   state.suspendConfig = false;
@@ -279,6 +318,25 @@ function renderFilters() {
     premium.append(wrap);
   }
   ensureRuneRow();
+  renderLeaders();
+}
+
+function renderLeaders() {
+  const select = $("leader");
+  if (!select || !state.meta) return;
+  const current = select.value;
+  select.replaceChildren();
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "不选";
+  select.append(none);
+  for (const item of state.meta.leaders || []) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item.name;
+    select.append(option);
+  }
+  if ([...select.options].some((option) => option.value === current)) select.value = current;
 }
 
 function toggleSet(set, id) {
@@ -623,27 +681,71 @@ async function openMonsterDialog(row) {
   if (!dialog.open) dialog.showModal();
 }
 
+function ceilPercent(base, percent) {
+  if (base <= 0 || percent <= 0) return 0;
+  return Math.floor((base * percent + 99) / 100);
+}
+
+function ceilTenths(base, tenths) {
+  if (base <= 0 || tenths <= 0) return 0;
+  return Math.floor((base * tenths + 999) / 1000);
+}
+
+function viewedPanel(panel) {
+  const opts = viewOptions();
+  const building = opts.buildings ? (panel.building || {}) : {};
+  const lead = (stat) => (opts.leader?.stat === stat ? opts.leader.percent : 0);
+  const pct = panel.percent || {};
+  const flat = panel.flat || {};
+  const art = panel.artifact || {};
+  const white = Object.fromEntries(panel.lines.map((line) => [line.key, line.white]));
+  const green = {};
+  for (const key of ["hp", "atk", "def"]) {
+    const bonus = (pct[key] || 0) + (building[key] || 0) + lead(key);
+    green[key] = Math.floor((white[key] || 0) * bonus / 100) + (flat[key] || 0) + (art[key] || 0);
+  }
+  green.spd = (panel.rune_spd || 0) + (panel.swift_spd || 0)
+    + (opts.buildings ? ceilTenths(white.spd || 0, panel.spd_tenths || 0) : 0)
+    + ceilPercent(white.spd || 0, lead("spd"));
+  green.cr = (pct.cr || 0) + lead("cr");
+  green.cd = (pct.cd || 0) + (opts.buildings ? (building.cd || 0) : 0);
+  green.acc = (pct.acc || 0) + lead("acc");
+  green.res = (pct.res || 0) + lead("res");
+  const lines = panel.lines.map((line) => ({
+    ...line,
+    green: green[line.key],
+    total: line.white + green[line.key],
+  }));
+  return { lines, showTotal: opts.showTotal, building: opts.buildings ? panel.building : null, leader: opts.leader };
+}
+
 function panelHtml(panel) {
-  const row = (title, field, klass, lineClass) => {
-    const bits = panel.lines.map((line) => `<span class="${klass}">${esc(line.label)} ${line[field] >= 0 && field === "green" ? "+" : ""}${num(line[field])}</span>`).join("");
-    return `<div class="panel-line${lineClass ? ` ${lineClass}` : ""}"><b>${title}</b>${bits}</div>`;
+  const viewed = viewedPanel(panel);
+  const row = (title, field, klass) => {
+    const bits = viewed.lines.map((line) => `<span class="${klass}">${esc(line.label)} ${line[field] >= 0 && field === "green" ? "+" : ""}${num(line[field])}</span>`).join("");
+    return `<div class="panel-line"><b>${title}</b>${bits}</div>`;
   };
-  const flat = panel.flat;
-  const pct = panel.percent;
-  const building = panel.building || { hp: 0, atk: 0, def: 0, spd: 0, cd: 0 };
-  const artifact = panel.artifact || { hp: 0, atk: 0, def: 0 };
+  const flat = panel.flat || {};
+  const pct = panel.percent || {};
+  const art = panel.artifact || {};
+  const building = viewed.building || { hp: 0, atk: 0, def: 0, spd: 0, cd: 0 };
   const speedBits = [`符文 ${panel.rune_spd}`];
-  if (panel.swift) speedBits.push(`迅速 ${panel.swift_spd}（白字 × 25%，向上取整）`);
+  if (panel.swift) speedBits.push(`迅速 ${panel.swift_spd}`);
+  if (viewed.building && panel.spd_tenths) speedBits.push(`速度图腾 ${ceilTenths(viewed.lines.find((line) => line.key === "spd").white, panel.spd_tenths)}`);
+  if (viewed.leader?.stat === "spd") speedBits.push(`队长 ${ceilPercent(viewed.lines.find((line) => line.key === "spd").white, viewed.leader.percent)}`);
   const flatBit = (runeFlat, artFlat) =>
     artFlat ? `符文平值 ${num(runeFlat)} + 神器 ${num(artFlat)}` : `平值 ${num(runeFlat)}`;
+  const extra = [];
+  if (viewed.building) extra.push(`竞技场建筑 生命 ${building.hp}%、攻击 ${building.atk}%、防御 ${building.def}%、爆伤 ${building.cd}%`);
+  const leadName = { spd: "速度", hp: "生命", atk: "攻击", def: "防御", cr: "暴击", acc: "命中", res: "抵抗" };
+  if (viewed.leader) extra.push(`队长${leadName[viewed.leader.stat] || ""} ${viewed.leader.percent}%`);
   return `
     <div class="panel-block">
+      ${row("绿字", "green", "num-green")}
+      ${viewed.showTotal ? `${row("白字", "white", "num-white")}${row("合计", "total", "")}` : ""}
       <div class="sheet-extra">
-        ${row("白字", "white", "num-white")}
-        ${row("绿字", "green", "num-green")}
-        <p class="formula">生命 = 白字 × ${pct.hp + building.hp}%（符文 ${pct.hp}% + 建筑 ${building.hp}%）+ ${flatBit(flat.hp, artifact.hp)}；攻击 = 白字 × ${pct.atk + building.atk}% + ${flatBit(flat.atk, artifact.atk)}；防御 = 白字 × ${pct.def + building.def}% + ${flatBit(flat.def, artifact.def)}。速度 = ${speedBits.join(" + ")}。爆伤另加建筑 ${building.cd}%。速度图腾、召唤师技能和公会旗子没有算进面板。</p>
+        <p class="formula">生命 = 白字 × ${pct.hp + (building.hp || 0)}% + ${flatBit(flat.hp, art.hp)}；攻击 = 白字 × ${pct.atk + (building.atk || 0)}% + ${flatBit(flat.atk, art.atk)}；防御 = 白字 × ${pct.def + (building.def || 0)}% + ${flatBit(flat.def, art.def)}。速度 = ${speedBits.join(" + ")}。${extra.length ? extra.join("。") + "。" : ""}召唤师技能和公会旗子没有算进面板。</p>
       </div>
-      ${row("合计", "total", "", "sheet-total")}
     </div>
   `;
 }
@@ -706,8 +808,9 @@ function renderRuneResult(data) {
         · 速度 ${rune.spd}
       </div>
     `).join("");
-    const speed = item.panel
-      ? `${item.panel.lines.find((line) => line.key === "spd").total}<small>面板速度</small>`
+    const speedLine = item.panel ? viewedPanel(item.panel).lines.find((line) => line.key === "spd") : null;
+    const speed = speedLine
+      ? `${viewOptions().showTotal ? speedLine.total : speedLine.green}<small>${viewOptions().showTotal ? "合计速度" : "绿字速度"}</small>`
       : `${item.spd}<small>符文速度</small>`;
     const who = item.panel ? ` · ${esc(item.panel.attribute)} ${esc(item.panel.name)}` : "";
     const faceHtml = item.panel?.avatar && String(item.panel.avatar).startsWith("https://")
@@ -757,6 +860,7 @@ async function solve() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ allow, sets }),
     });
+    state.lastSolve = data;
     renderRuneResult(data);
     saveConfig();
     status.textContent = "配置完成，已按账号写入本地缓存。";
@@ -841,6 +945,7 @@ function bind() {
       return;
     }
     $("rune-result").replaceChildren();
+    state.lastSolve = null;
     fillRtaRows(presets);
     saveConfig();
     status.className = "status";
@@ -930,6 +1035,12 @@ function bind() {
   $("premium").addEventListener("change", (event) => {
     if (event.target.matches("[data-premium]")) saveConfig();
   });
+  for (const id of ["show-total", "include-buildings", "leader"]) {
+    $(id).addEventListener("change", () => {
+      saveConfig();
+      if (state.lastSolve) renderRuneResult(state.lastSolve);
+    });
+  }
   $("rune-result").addEventListener("click", (event) => {
     const button = event.target.closest("[data-fold-sheet]");
     if (!button) return;
