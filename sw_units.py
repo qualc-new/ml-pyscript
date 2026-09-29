@@ -30,7 +30,7 @@ from constants import (
     SOURCE_ALIAS,
 )
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 JSO = HERE.parent
 DEFAULT_UNIT_LIST = JSO / "遇见丶小八-32521580" / "unit_list.json"
 

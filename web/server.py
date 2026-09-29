@@ -20,9 +20,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-ROOT = Path(__file__).resolve().parent
-PYSCRIPT = ROOT.parent
-STATIC = ROOT / "static"
+if getattr(sys, "frozen", False):
+    PYSCRIPT = Path(sys._MEIPASS)
+    STATIC = PYSCRIPT / "web" / "static"
+else:
+    ROOT = Path(__file__).resolve().parent
+    PYSCRIPT = ROOT.parent
+    STATIC = ROOT / "static"
 sys.path.insert(0, str(PYSCRIPT))
 
 from constants import ATTR_CN, NATURAL_STARS_BY_MASTER_ID, SOURCE  # noqa: E402
