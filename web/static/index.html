@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>魔灵 JSON</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="mark">录</span>
+      <div>
+        <strong>魔灵 JSON</strong>
+        <small>本地登录包</small>
+      </div>
+    </div>
+    <nav>
+      <button type="button" data-tab="import" class="active">导入</button>
+      <button type="button" data-tab="parse">解析</button>
+      <button type="button" data-tab="summon">召唤记录</button>
+      <button type="button" data-tab="rune">符文配置</button>
+    </nav>
+    <div id="account" class="account">未导入</div>
+  </header>
+
+  <main>
+    <section id="tab-import">
+      <div id="drop" class="drop" tabindex="0">
+        <input id="file" type="file" accept=".json,application/json" hidden />
+        <p class="drop-title">导入完整登录包</p>
+        <p class="muted">把 HubUserLogin JSON 拖到这里，或点击选择文件。数据只留在这台电脑的本次进程里。</p>
+        <button type="button" id="pick" class="primary">选择 JSON</button>
+      </div>
+      <p id="import-status" class="status"></p>
+      <div id="summary" class="summary" hidden></div>
+    </section>
+
+    <section id="tab-parse" hidden>
+      <div class="toolbar">
+        <input id="key-search" type="search" placeholder="搜索字段名或说明" />
+      </div>
+      <div class="split">
+        <div id="key-list" class="key-list"></div>
+        <article id="preview" class="preview">
+          <p class="muted">从左边选一个字段，查看类型和截断后的内容。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-summon" hidden>
+      <div class="filters">
+        <div class="filter-row" id="attr-filters"></div>
+        <div class="filter-row" id="star-filters"></div>
+        <div class="filter-row">
+          <label>来源
+            <select id="source"></select>
+          </label>
+          <label class="grow">名称或 ID
+            <input id="summon-q" type="search" placeholder="例如 Gandalf、19214" />
+          </label>
+          <button type="button" id="summon-go" class="primary">查看</button>
+        </div>
+      </div>
+      <p id="summon-meta" class="status"></p>
+      <div id="summon-list" class="summon-list"></div>
+    </section>
+
+    <section id="tab-rune" hidden>
+      <div class="panel" id="rune-panel">
+        <div class="row-head">
+          <strong>配置</strong>
+          <button type="button" id="fold-config" aria-expanded="true">折叠配置</button>
+        </div>
+        <div class="filter-row" id="premium"></div>
+        <dialog id="monster-dialog">
+          <div class="dialog-bar">
+            <strong>选择魔灵</strong>
+            <button type="button" id="monster-close">关闭</button>
+          </div>
+          <div class="tabs" id="monster-attrs">
+            <button type="button" data-mattr="3">风</button>
+            <button type="button" data-mattr="2">火</button>
+            <button type="button" data-mattr="1">水</button>
+            <button type="button" data-mattr="4">光</button>
+            <button type="button" data-mattr="5">暗</button>
+          </div>
+          <div class="tabs sub" id="monster-stars">
+            <button type="button" data-mstar="1">1★</button>
+            <button type="button" data-mstar="2">2★</button>
+            <button type="button" data-mstar="3">3★</button>
+            <button type="button" data-mstar="4">4★</button>
+            <button type="button" data-mstar="5">5★</button>
+          </div>
+          <p id="monster-count" class="muted"></p>
+          <div id="monster-list" class="monster-grid"></div>
+        </dialog>
+        <p class="muted rule">
+          每一套各自选一只魔灵。白字是这只魔灵当前等级的基础值：生命 = con × 15，攻击、防御、速度用魔灵自己的数值。
+          绿字 = 白字 ×（符文百分比 + 荣耀建筑）+ 符文平值 + 已装备神器主属性。速度只再加迅速对白字的 25%（向上取整），不含天空部落图腾。爆伤加上堕落的远古守护。
+          生命、攻击、防御的下限填这个绿字，要先选魔灵。速度填符文速度，暴击、爆伤、命中、抵抗填百分比。召唤师技能和公会旗子不计入。
+          配置按账号记在这台浏览器里。点「一键导入 RTA 配置」会清空当前配置，再填入世界竞技场里凑满 6 颗符文的预设。每套左侧可以拖拽排序。
+          配置使用库存里的符文，以及魔灵身上正在穿的符文（含魔灵仓库和岛上）。
+          没选魔灵的那一套只显示符文百分比。未勾选的套装不会进散件槽。后一套会排除前面用掉的符文。
+        </p>
+        <div id="rune-rows"></div>
+        <div class="filter-row">
+          <button type="button" id="add-set">添加一套</button>
+          <button type="button" id="import-rta">一键导入 RTA 配置</button>
+          <button type="button" id="solve" class="primary">开始配置</button>
+          <span id="rune-status" class="status"></span>
+        </div>
+      </div>
+      <div id="rune-result"></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

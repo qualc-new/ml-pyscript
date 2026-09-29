@@ -54,10 +54,46 @@ MATCH_ROW = re.compile(
 )
 
 
+ICON_BASE = "https://do9d4mpqk497d.cloudfront.net/common/images/monsters/"
+
+
 def cache_dir() -> Path:
     d = HERE / ".cache"
     d.mkdir(exist_ok=True)
     return d
+
+
+def load_icon_files() -> dict[int, str]:
+    path = cache_dir() / "monster_icons.json"
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    table: dict[int, str] = {}
+    for mid, name in raw.items():
+        if not isinstance(name, str) or "/" in name or "\\" in name:
+            continue
+        if not name.startswith("unit_icon_") or not name.endswith(".png"):
+            continue
+        try:
+            table[int(mid)] = name
+        except ValueError:
+            continue
+    return table
+
+
+ICON_FILES = load_icon_files()
+
+
+def monster_avatar(mid: int) -> str:
+    filename = ICON_FILES.get(int(mid))
+    if filename:
+        return ICON_BASE + filename
+    return AVATAR_BY_MASTER_ID.get(mid) or ""
 
 
 def load_json(path: Path):
@@ -237,7 +273,7 @@ def to_row(unit: dict, swex: dict[int, str]) -> dict:
         "source": unit["source"],
         "source_label": SOURCE.get(unit["source"], str(unit["source"])),
         "unit_id": unit["unit_id"],
-        "avatar": AVATAR_BY_MASTER_ID.get(mid, ""),
+        "avatar": monster_avatar(mid),
     }
 
 
@@ -291,9 +327,11 @@ def filter_rows(
     stars: set[int] | None,
     source: str | set[int],
     fetch_missing: bool,
+    swex: dict[int, str] | None = None,
 ) -> list[dict]:
-    print("加载名称表 …")
-    swex = load_swex_names() if fetch_missing else {}
+    if swex is None:
+        print("加载名称表 …")
+        swex = load_swex_names() if fetch_missing else {}
     rows = []
     for u in units:
         if attrs is not None and u.get("attribute") not in attrs:
